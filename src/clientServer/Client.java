@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 
 public class Client implements Runnable {
 
@@ -12,6 +13,9 @@ public class Client implements Runnable {
 
     private int serverPort;
     private boolean running;
+
+    private DataOutputStream serverOutputStream;
+    private BufferedReader serverInputStream;
 
     public Client(int port) {
         serverPort = port;
@@ -26,21 +30,21 @@ public class Client implements Runnable {
         Socket clientSocket = null;
 
         try {
+
             BufferedReader fromUser = new BufferedReader(new InputStreamReader(System.in));
-
             clientSocket = new Socket("localhost", serverPort);
-
-            DataOutputStream toServer = new DataOutputStream(clientSocket.getOutputStream());
-
-            BufferedReader fromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            clientSocket.setSoTimeout(2000);
+            serverOutputStream = new DataOutputStream(clientSocket.getOutputStream());
+            serverInputStream = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             while (running) {
                 sentence = fromUser.readLine();
-                toServer.writeBytes(sentence + "\n");
-                modifiedSentence = fromServer.readLine();
+                serverOutputStream.writeBytes(sentence + "\n");
+                modifiedSentence = serverInputStream.readLine();
                 System.out.println("FROM SERVER: " + modifiedSentence);
             }
-
+        } catch (SocketTimeoutException e) {
+            System.out.println("Connection Timed out. Server Pool must be full");
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -54,15 +58,29 @@ public class Client implements Runnable {
         }
     }
 
+    public boolean hasActiveConnection() {
+        try {
+            if (serverOutputStream == null || serverInputStream == null)
+                return false;
+
+            serverOutputStream.writeBytes("Test Active Connection\n");
+            serverInputStream.readLine();
+        } catch (SocketTimeoutException e){
+            return false;
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
+    }
+
     public static void main(String[] argv) {
 
         Client client;
-
-        if (argv.length == 1) {
+        if (argv.length == 1)
             client = new Client(Integer.parseInt(argv[0]));
-        } else {
+        else
             client = new Client(DEFAULT_SERVER_PORT);
-        }
 
         client.run();
     }
