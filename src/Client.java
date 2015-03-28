@@ -1,24 +1,67 @@
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 
-public class Client {
+public class Client implements Runnable {
 
-    public static void main(String[] argv) throws Exception {
-        System.out.println("Client Started...");
-        int port = 6789;
+    private static final int DEFAULT_SERVER_PORT = 9000;
+
+    private int serverPort;
+    private boolean running;
+
+    public Client(int port) {
+        serverPort = port;
+        running = true;
+    }
+
+    @Override
+    public void run() {
+
         String sentence;
         String modifiedSentence;
-        BufferedReader fromUser = new BufferedReader(new InputStreamReader(System.in));
-        System.out.println("Input Message:");
-        Socket clientSocket = new Socket("localhost", port);
-        DataOutputStream toServer = new DataOutputStream(clientSocket.getOutputStream());
-        BufferedReader fromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        sentence = fromUser.readLine();
-        toServer.writeBytes(sentence + "\n");
-        modifiedSentence = fromServer.readLine();
-        System.out.println("FROM SERVER: " + modifiedSentence);
-        clientSocket.close();
+        Socket clientSocket = null;
+
+        try {
+            BufferedReader fromUser = new BufferedReader(new InputStreamReader(System.in));
+
+            clientSocket = new Socket("localhost", serverPort);
+
+            DataOutputStream toServer = new DataOutputStream(clientSocket.getOutputStream());
+
+            BufferedReader fromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+            while (running) {
+                sentence = fromUser.readLine();
+                toServer.writeBytes(sentence + "\n");
+                modifiedSentence = fromServer.readLine();
+                System.out.println("FROM SERVER: " + modifiedSentence);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (clientSocket != null) {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static void main(String[] argv) {
+
+        Client client;
+
+        if (argv.length == 1) {
+            client = new Client(Integer.parseInt(argv[0]));
+        } else {
+            client = new Client(DEFAULT_SERVER_PORT);
+        }
+
+        client.run();
     }
 }
