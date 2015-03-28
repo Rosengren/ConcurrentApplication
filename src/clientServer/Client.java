@@ -40,11 +40,15 @@ public class Client implements Runnable {
             while (running) {
                 sentence = fromUser.readLine();
                 serverOutputStream.writeBytes(sentence + "\n");
-                modifiedSentence = serverInputStream.readLine();
-                System.out.println("FROM SERVER: " + modifiedSentence);
+
+                try {
+                    modifiedSentence = serverInputStream.readLine();
+                    System.out.println("FROM SERVER: " + modifiedSentence);
+                } catch (SocketTimeoutException e) {
+                    System.out.println("Connection Timed out. Server Pool must be full");
+                }
             }
-        } catch (SocketTimeoutException e) {
-            System.out.println("Connection Timed out. Server Pool must be full");
+
         } catch (IOException e) {
             e.printStackTrace();
         } finally {

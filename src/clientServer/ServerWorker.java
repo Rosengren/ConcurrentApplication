@@ -5,15 +5,18 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.concurrent.Semaphore;
 
 public class ServerWorker implements Runnable {
 
     private Socket clientSocket;
     private int serverID;
+    private Semaphore semaphore;
 
-    public ServerWorker(Socket clientSocket, int serverID) {
+    public ServerWorker(Socket clientSocket, int serverID, Semaphore semaphore) {
         this.clientSocket = clientSocket;
         this.serverID = serverID;
+        this.semaphore = semaphore;
     }
 
     @Override
@@ -42,6 +45,8 @@ public class ServerWorker implements Runnable {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            semaphore.release();
         }
     }
 }

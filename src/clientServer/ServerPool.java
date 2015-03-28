@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 public class ServerPool implements Runnable {
 
@@ -14,9 +15,8 @@ public class ServerPool implements Runnable {
     private int serverPort;
     protected ServerSocket serverSocket = null;
     protected Thread runningThread = null;
-//    protected ExecutorService threadPool = Executors.newCachedThreadPool();
-    protected ExecutorService threadPool; //= Executors.newFixedThreadPool(DEFAULT_MAX_THREADS);
-//    private Semaphore sem_threadPoolLimit;
+    protected ExecutorService threadPool;
+    private Semaphore sem_threadPoolLimit;
     private boolean running;
 
     public ServerPool(int port){
@@ -25,8 +25,9 @@ public class ServerPool implements Runnable {
 
     public ServerPool(int port, int maxNumberOfThreads) {
         this.serverPort = port;
-//        sem_threadPoolLimit = new Semaphore(DEFAULT_MAX_THREADS, true);
-        threadPool = Executors.newFixedThreadPool(DEFAULT_MAX_THREADS);
+        sem_threadPoolLimit = new Semaphore(maxNumberOfThreads, true);
+        threadPool = Executors.newCachedThreadPool();
+//        threadPool = Executors.newFixedThreadPool(maxNumberOfThreads);
         running = true;
     }
 
@@ -46,16 +47,18 @@ public class ServerPool implements Runnable {
 
         openSocket();
         while (isRunning()) { // TODO: change this to be able to close the socket
-            Socket clientSocket = null;
+            Socket clientSocket;
             try {
                 clientSocket = this.serverSocket.accept();
-            } catch (IOException e) {
-//                e.printStackTrace();
-//                System.out.println("Error: could not accept client socket");
-                stop();
-            }
 
-            this.threadPool.execute(new ServerWorker(clientSocket, serverNumber++));
+                sem_threadPoolLimit.acquire();
+                this.threadPool.execute(new ServerWorker(clientSocket, serverNumber++, sem_threadPoolLimit));
+            } catch (IOException e) {
+                System.out.println("Error: could not accept client socket");
+                stop();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         this.threadPool.shutdown(); // Stopped Server
