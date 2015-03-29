@@ -27,15 +27,17 @@ public class Client implements Runnable {
         printMsg("Ready to send to port " + serverPort + "...");
         try {
             BufferedReader fromUser = new BufferedReader(new InputStreamReader(System.in));
-            printMsg("Input Message:");
             clientSocket = new Socket("localhost", serverPort);
             clientSocket.setSoTimeout(2000);
             DataOutputStream serverOutputStream = new DataOutputStream(clientSocket.getOutputStream());
             BufferedReader serverInputStream = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             while (running) {
-
+                printMsg("Input Message:");
                 sentence = fromUser.readLine();
+
+                if (sentence.equals("stop")) return; // KEYWORD FOR STOPPING CLIENT
+
                 serverOutputStream.writeBytes(sentence + "\n");
 
                 try {

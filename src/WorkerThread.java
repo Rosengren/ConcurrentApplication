@@ -13,8 +13,8 @@ public class WorkerThread implements Callable<String> {
     private Semaphore semaphore;
     private boolean running;
 
-    BufferedReader fromClient;
-    DataOutputStream toClient;
+    private BufferedReader fromClient;
+    private DataOutputStream toClient;
 
     public WorkerThread(Socket clientSocket, Semaphore semaphore) {
         this.clientSocket = clientSocket;
