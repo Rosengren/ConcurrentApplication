@@ -1,10 +1,9 @@
-package clientServer;
-
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
 public class Client implements Runnable {
@@ -46,6 +45,8 @@ public class Client implements Runnable {
                     printMsg("Connection Timed out. Server Pool must be full");
                 }
             }
+        } catch (SocketException e) {
+          System.out.println("Error: Socket Exception");
         } catch (IOException e) {
             e.printStackTrace();
         } finally {

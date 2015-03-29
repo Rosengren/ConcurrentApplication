@@ -1,5 +1,3 @@
-package clientServer;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -10,14 +8,17 @@ import java.util.concurrent.*;
 public class ServerPool implements Runnable {
 
     private int serverPort;
-    protected ServerSocket serverSocket = null;
-    protected Thread runningThread = null;
-    protected ExecutorService threadConnectionPool;
+    private ServerSocket serverSocket = null;
+    private ExecutorService threadConnectionPool;
     private Semaphore sem_threadPoolLimit;
     private boolean running;
 
+    private Socket clientSocket;
+
+    private ArrayList<Socket> openSockets;
+
     // Callable and Future
-    List<Future<String>> futureList;
+    private List<Future<String>> futureList;
 
     public ServerPool(int port){
         this(port, Preferences.DEFAULT_MAX_THREADS);
@@ -29,6 +30,7 @@ public class ServerPool implements Runnable {
         threadConnectionPool = Executors.newCachedThreadPool();
         running = true;
 
+        openSockets= new ArrayList<Socket>();
         futureList = new ArrayList<Future<String>>();
 
         setShutdownBehaviour();
@@ -39,29 +41,27 @@ public class ServerPool implements Runnable {
     @Override
     public void run() {
 
-        int threadNumber = 1;
-
         synchronized(this) {
-            this.runningThread = Thread.currentThread();
+            Thread runningThread = Thread.currentThread();
         }
 
         openSocket();
-        Socket clientSocket;
         while (isRunning()) {
             try {
                 clientSocket = this.serverSocket.accept();
+                openSockets.add(clientSocket);
 
                 sem_threadPoolLimit.acquire();
 
                 // use thread from connection pool
-                Callable<String> serverWorker = new ServerWorker(clientSocket, threadNumber++, sem_threadPoolLimit);
+                Callable<String> serverWorker = new WorkerThread(clientSocket, sem_threadPoolLimit);
+
                 futureList.add(threadConnectionPool.submit(serverWorker));
 
             } catch (RuntimeException e) {
                 printMsg("Error: runtime Exception");
                 stop();
             } catch (IOException e) {
-                printMsg("Error: could not accept client socket");
                 stop();
             } catch (InterruptedException e) {
                 printMsg("Error: worker thread interrupted");
@@ -70,7 +70,6 @@ public class ServerPool implements Runnable {
         }
 
     }
-
 
     private void openSocket() {
         try {
@@ -104,16 +103,26 @@ public class ServerPool implements Runnable {
             public void run() {
 
                 try {
-                    threadConnectionPool.shutdown(); // Stopped Server
-                    threadConnectionPool.awaitTermination(20, TimeUnit.SECONDS);
+                    for (Socket socket : openSockets)
+                        socket.close();
+
+                    printMsg("Stopping Server...");
+                    threadConnectionPool.shutdown();
+                    printMsg("Waiting " + Preferences.TERMINATION_WAIT_TIME + " seconds");
+                    threadConnectionPool.awaitTermination(Preferences.TERMINATION_WAIT_TIME,
+                            TimeUnit.SECONDS);
+
                 } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
 
                 printMsg("Results:");
                 for(Future<String> future : futureList){
                     try {
-                        printMsg(future.get());
+                        if (future.isDone() || future.isCancelled())
+                            printMsg(future.get());
                     } catch (ExecutionException e) {
                         e.printStackTrace();
                     } catch (InterruptedException e) {
@@ -126,19 +135,20 @@ public class ServerPool implements Runnable {
         });
     }
 
-
     // Can be used to save messages in log files
     // instead of outputting to the terminal
     private void printMsg(String msg) {
         System.out.println(msg);
     }
 
-
     public static void main(java.lang.String argv[]) {
 
         ServerPool server;
+
         if (argv.length == 1)
             server = new ServerPool(Integer.parseInt(argv[0]));
+        else if (argv.length == 2)
+            server = new ServerPool(Integer.parseInt(argv[0]), Integer.parseInt(argv[1]));
         else
             server = new ServerPool(Preferences.DEFAULT_SERVER_PORT);
 
